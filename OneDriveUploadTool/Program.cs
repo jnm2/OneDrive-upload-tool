@@ -133,7 +133,8 @@ namespace OneDriveUploadTool
                 return;
             }
 
-            var provider = new ChunkedUploadProvider(session, client, fileStream);
+            // Use minimum maxChunkSize to keep progress reports moving
+            var provider = new ChunkedUploadProvider(session, client, fileStream, maxChunkSize: 320 * 1024);
             var success = false;
             try
             {
