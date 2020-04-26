@@ -13,6 +13,7 @@ using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using TaskTupleAwaiter;
+using Techsola;
 
 namespace OneDriveUploadTool
 {
@@ -28,22 +29,40 @@ namespace OneDriveUploadTool
 
             command.Handler = CommandHandler.Create(async (string source, string destination, CancellationToken cancellationToken) =>
             {
-                await UploadAsync(Path.GetFullPath(source), destination, cancellationToken);
+                var progressRenderer = new WindowsStructuredReportConsoleRenderer();
+
+                await UploadAsync(
+                    Path.GetFullPath(source),
+                    destination,
+                    new Progress<StructuredReport>(progressRenderer.Render),
+                    cancellationToken);
             });
 
             await command.InvokeAsync(args);
         }
 
-        public static async Task UploadAsync(string sourceDirectory, string destination, CancellationToken cancellationToken)
+        public static async Task UploadAsync(
+            string sourceDirectory,
+            string destination,
+            IProgress<StructuredReport> progress,
+            CancellationToken cancellationToken)
         {
+            var structuredProgress = progress.Start("Logging in and enumerating files");
+
             var ((client, itemRequestBuilderFactory), files) = await (
                 GetClientAndItemRequestBuilderFactoryAsync(),
                 Task.Run(() => new FileSystemEnumerable<EnumeratedFileData>(sourceDirectory, EnumeratedFileData.FromFileSystemEntry).ToImmutableArray(), cancellationToken));
 
+            structuredProgress.AddJobSize(files.Length);
+
             foreach (var file in files)
             {
-                await UploadFileAsync(client, itemRequestBuilderFactory, sourceDirectory, file, cancellationToken);
+                structuredProgress.Next("Uploading files");
+
+                await UploadFileAsync(client, itemRequestBuilderFactory, sourceDirectory, file, structuredProgress.CreateSubprogress(), cancellationToken);
             }
+
+            structuredProgress.Complete();
 
             async Task<(GraphServiceClient Client, Func<string, IDriveItemRequestBuilder> ItemRequestBuilderFactory)> GetClientAndItemRequestBuilderFactoryAsync()
             {
@@ -69,11 +88,18 @@ namespace OneDriveUploadTool
             Func<string, IDriveItemRequestBuilder> itemRequestBuilderFactory,
             string source,
             EnumeratedFileData file,
+            IProgress<StructuredReport> progress,
             CancellationToken cancellationToken)
         {
+            var relativePath = Path.GetRelativePath(source, file.FullPath);
+
+            var structuredProgress = progress.Start("Opening " + relativePath, initialJobSize: 0);
+
             await using var fileStream = System.IO.File.OpenRead(file.FullPath);
 
-            var relativePath = Path.GetRelativePath(source, file.FullPath);
+            structuredProgress.AddJobSize(1);
+            structuredProgress.Next("Creating upload session for " + relativePath);
+
             UploadSession session;
             try
             {
@@ -90,6 +116,7 @@ namespace OneDriveUploadTool
             }
             catch (ServiceException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
             {
+                structuredProgress.Complete("Skipped because file already exists at the destination.");
                 return;
             }
 
@@ -97,13 +124,16 @@ namespace OneDriveUploadTool
             var success = false;
             try
             {
-                var uploadRequests = provider.GetUploadChunkRequests();
+                var uploadRequests = provider.GetUploadChunkRequests().ToList();
+                structuredProgress.AddJobSize(uploadRequests.Count);
 
                 var exceptions = new List<Exception>();
 
                 foreach (var request in uploadRequests)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+
+                    structuredProgress.Next("Uploading " + relativePath);
                     var result = await provider.GetChunkRequestResponseAsync(request, exceptions);
 
                     if (result.UploadSucceeded)
@@ -117,6 +147,8 @@ namespace OneDriveUploadTool
 
             if (!success)
                 throw new NotImplementedException("Upload failed");
+
+            structuredProgress.Complete();
         }
 
         private static async Task<string> GetAuthenticationTokenAsync(CancellationToken cancellationToken)

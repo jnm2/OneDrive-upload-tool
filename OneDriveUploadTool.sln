@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30021.99
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OneDriveUploadTool", "OneDriveUploadTool\OneDriveUploadTool.csproj", "{4D136114-DC35-4F5D-986B-FFD4174067CA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OneDriveUploadTool", "OneDriveUploadTool\OneDriveUploadTool.csproj", "{4D136114-DC35-4F5D-986B-FFD4174067CA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Techsola.StructuredProgress", "..\Techsola.StructuredProgress\src\Techsola.StructuredProgress\Techsola.StructuredProgress.csproj", "{7DE5448A-1B77-4C48-AFB7-CCC46B3BD6FD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{4D136114-DC35-4F5D-986B-FFD4174067CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4D136114-DC35-4F5D-986B-FFD4174067CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4D136114-DC35-4F5D-986B-FFD4174067CA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7DE5448A-1B77-4C48-AFB7-CCC46B3BD6FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7DE5448A-1B77-4C48-AFB7-CCC46B3BD6FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7DE5448A-1B77-4C48-AFB7-CCC46B3BD6FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7DE5448A-1B77-4C48-AFB7-CCC46B3BD6FD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
