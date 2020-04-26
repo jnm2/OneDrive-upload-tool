@@ -23,6 +23,14 @@
 
             public void Write(char value)
             {
+                if (x >= buffer.GetLength(1))
+                {
+                    x = 0;
+                    y++;
+                }
+
+                if (y >= buffer.GetLength(0)) return;
+
                 buffer[y, x].UnicodeChar = value;
                 x++;
                 if (MaxX < x) MaxX = x;
