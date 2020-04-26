@@ -146,34 +146,42 @@ namespace OneDriveUploadTool
                     return;
                 }
 
+                structuredProgress.AddJobSize(file.Length);
+
                 // Use minimum maxChunkSize to keep progress reports moving
                 var provider = new ChunkedUploadProvider(session, client, fileStream, maxChunkSize: 320 * 1024);
                 var success = false;
                 try
                 {
-                    var uploadRequests = provider.GetUploadChunkRequests().ToList();
-                    structuredProgress.AddJobSize(uploadRequests.Sum(request => (long)request.RangeLength));
-
-                    var exceptions = new List<Exception>();
-
-                    foreach (var request in uploadRequests)
+                    while (true)
                     {
+                        var uploadRequests = provider.GetUploadChunkRequests().ToList();
+                        if (!uploadRequests.Any())
+                            throw new NotImplementedException("Upload has not succeeded and no upload chunks were requested.");
+
+                        var exceptions = new List<Exception>();
+
+                        foreach (var request in uploadRequests)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+
+                            structuredProgress.Next("Uploading " + relativePath, request.RangeLength);
+                            var result = await provider.GetChunkRequestResponseAsync(request, exceptions);
+
+                            if (result.UploadSucceeded)
+                                success = true;
+                        }
+
+                        if (success) break;
+
                         cancellationToken.ThrowIfCancellationRequested();
-
-                        structuredProgress.Next("Uploading " + relativePath, request.RangeLength);
-                        var result = await provider.GetChunkRequestResponseAsync(request, exceptions);
-
-                        if (result.UploadSucceeded)
-                            success = true;
+                        await provider.UpdateSessionStatusAsync();
                     }
                 }
                 finally
                 {
                     if (!success) await provider.DeleteSession();
                 }
-
-                if (!success)
-                    throw new NotImplementedException("Upload failed");
             }
             finally
             {
