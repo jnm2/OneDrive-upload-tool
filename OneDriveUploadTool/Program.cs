@@ -59,7 +59,7 @@ namespace OneDriveUploadTool
                             EnumeratedFileData.FromFileSystemEntry,
                             new EnumerationOptions
                             {
-                                AttributesToSkip = 0,
+                                AttributesToSkip = FileAttributes.System,
                                 RecurseSubdirectories = true,
                                 IgnoreInaccessible = false,
                             });
