@@ -59,13 +59,14 @@ namespace OneDriveUploadTool
                         .ToImmutableArray(),
                     cancellationToken));
 
-            structuredProgress.AddJobSize(files.Length);
-            structuredProgress.Next("Uploading files", files.Length);
+            var totalFileSize = files.Sum(file => file.Length);
+            structuredProgress.AddJobSize(totalFileSize);
+            structuredProgress.Next("Uploading files", totalFileSize);
 
             var queue = new AsyncParallelQueue<object?>(
                 files.Select(async file =>
                 {
-                    await UploadFileAsync(client, itemRequestBuilderFactory, sourceDirectory, file, structuredProgress.CreateSubprogress(), cancellationToken);
+                    await UploadFileAsync(client, itemRequestBuilderFactory, sourceDirectory, file, structuredProgress.CreateSubprogress(file.Length), cancellationToken);
 
                     return (object?)null;
                 }),
@@ -137,7 +138,7 @@ namespace OneDriveUploadTool
             try
             {
                 var uploadRequests = provider.GetUploadChunkRequests().ToList();
-                structuredProgress.AddJobSize(uploadRequests.Count);
+                structuredProgress.AddJobSize(uploadRequests.Sum(request => (long)request.RangeLength));
 
                 var exceptions = new List<Exception>();
 
@@ -145,7 +146,7 @@ namespace OneDriveUploadTool
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    structuredProgress.Next("Uploading " + relativePath);
+                    structuredProgress.Next("Uploading " + relativePath, request.RangeLength);
                     var result = await provider.GetChunkRequestResponseAsync(request, exceptions);
 
                     if (result.UploadSucceeded)

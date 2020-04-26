@@ -7,15 +7,17 @@ namespace OneDriveUploadTool
     {
         private readonly struct EnumeratedFileData
         {
-            public EnumeratedFileData(string fullPath, DateTimeOffset creationTimeUtc, DateTimeOffset lastWriteTimeUtc, DateTimeOffset lastAccessTimeUtc)
+            public EnumeratedFileData(string fullPath, long length, DateTimeOffset creationTimeUtc, DateTimeOffset lastWriteTimeUtc, DateTimeOffset lastAccessTimeUtc)
             {
                 FullPath = fullPath;
+                Length = length;
                 CreationTimeUtc = creationTimeUtc;
                 LastWriteTimeUtc = lastWriteTimeUtc;
                 LastAccessTimeUtc = lastAccessTimeUtc;
             }
 
             public string FullPath { get; }
+            public long Length { get; }
             public DateTimeOffset CreationTimeUtc { get; }
             public DateTimeOffset LastWriteTimeUtc { get; }
             public DateTimeOffset LastAccessTimeUtc { get; }
@@ -24,6 +26,7 @@ namespace OneDriveUploadTool
             {
                 return new EnumeratedFileData(
                     entry.ToFullPath(),
+                    entry.Length,
                     entry.CreationTimeUtc,
                     entry.LastWriteTimeUtc,
                     entry.LastAccessTimeUtc);
