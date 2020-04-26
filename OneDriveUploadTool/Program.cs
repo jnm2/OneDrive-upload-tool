@@ -147,7 +147,10 @@ namespace OneDriveUploadTool
                     return;
                 }
 
-                structuredProgress.AddJobSize(file.Length);
+                var reportedUploadJobSize = file.Length;
+                structuredProgress.AddJobSize(reportedUploadJobSize);
+
+                var actualUploadJobSize = 0;
 
                 // Use minimum maxChunkSize to keep progress reports moving
                 var provider = new ChunkedUploadProvider(session, client, fileStream, maxChunkSize: 320 * 1024);
@@ -159,6 +162,13 @@ namespace OneDriveUploadTool
                         var uploadRequests = provider.GetUploadChunkRequests().ToList();
                         if (!uploadRequests.Any())
                             throw new NotImplementedException("Upload has not succeeded and no upload chunks were requested.");
+
+                        actualUploadJobSize += uploadRequests.Sum(request => request.RangeLength);
+                        if (actualUploadJobSize > reportedUploadJobSize)
+                        {
+                            structuredProgress.AddJobSize(actualUploadJobSize - reportedUploadJobSize);
+                            reportedUploadJobSize = actualUploadJobSize;
+                        }
 
                         var exceptions = new List<Exception>();
 
