@@ -26,21 +26,19 @@ namespace OneDriveUploadTool
                 new Argument<string>("destination") { Description = "The path to the OneDrive destination folder." },
             };
 
-            command.Handler = CommandHandler.Create(typeof(Program).GetMethod(nameof(Upload)));
+            command.Handler = CommandHandler.Create(async (string source, string destination, CancellationToken cancellationToken) =>
+            {
+                await UploadAsync(Path.GetFullPath(source), destination, cancellationToken);
+            });
 
             await command.InvokeAsync(args);
         }
 
-        private static readonly IDictionary<string, object> UploadAdditionalData = ImmutableDictionary<string, object>.Empty
-            .Add("@microsoft.graph.conflictBehavior", "fail");
-
-        public static async Task Upload(string source, string destination, CancellationToken cancellationToken)
+        public static async Task UploadAsync(string sourceDirectory, string destination, CancellationToken cancellationToken)
         {
-            source = Path.GetFullPath(source);
-
             var (token, files) = await (
                 GetAuthenticationTokenAsync(cancellationToken),
-                Task.Run(() => new FileSystemEnumerable<EnumeratedFileData>(source, EnumeratedFileData.FromFileSystemEntry).ToImmutableArray(), cancellationToken));
+                Task.Run(() => new FileSystemEnumerable<EnumeratedFileData>(sourceDirectory, EnumeratedFileData.FromFileSystemEntry).ToImmutableArray(), cancellationToken));
 
             var client = new GraphServiceClient(new DelegateAuthenticationProvider(request =>
             {
@@ -52,11 +50,14 @@ namespace OneDriveUploadTool
 
             foreach (var file in files)
             {
-                await UploadAsync(client, getItemRequestBuilder, source, file, cancellationToken);
+                await UploadFileAsync(client, getItemRequestBuilder, sourceDirectory, file, cancellationToken);
             }
         }
 
-        private static async Task UploadAsync(
+        private static readonly IDictionary<string, object> UploadAdditionalData = ImmutableDictionary<string, object>.Empty
+            .Add("@microsoft.graph.conflictBehavior", "fail");
+
+        private static async Task UploadFileAsync(
             GraphServiceClient client,
             Func<string, IDriveItemRequestBuilder> getItemRequestBuilder,
             string source,
