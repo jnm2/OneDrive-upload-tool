@@ -17,7 +17,7 @@ using Techsola;
 
 namespace OneDriveUploadTool
 {
-    internal static partial class Program
+    public static partial class Program
     {
         public static async Task Main(string[] args)
         {
@@ -236,10 +236,20 @@ namespace OneDriveUploadTool
                     .Drives[rootItem.RemoteItem.ParentReference.DriveId]
                     .Items[rootItem.RemoteItem.Id];
 
-                return childPath => rootRequestBuilder.ItemWithPath(rest + '/' + childPath);
+                return CreateItemRequestBuilderFactory(rootRequestBuilder, rest);
             }
 
-            return childPath => client.Drive.Root.ItemWithPath(destination + '/' + childPath);
+            return CreateItemRequestBuilderFactory(client.Drive.Root, destination);
+        }
+
+        public static Func<string, IDriveItemRequestBuilder> CreateItemRequestBuilderFactory(IDriveItemRequestBuilder rootBuilder, string? parentPath)
+        {
+            return childPath =>
+            {
+                var fullPath = parentPath is null ? childPath : parentPath + '/' + childPath;
+
+                return rootBuilder.ItemWithPath(fullPath.Replace("%", "%25"));
+            };
         }
 
         private static readonly char[] SeparatorChars = { '/', '\\' };
