@@ -57,7 +57,12 @@ namespace OneDriveUploadTool
                         var enumerable = new FileSystemEnumerable<EnumeratedFileData>(
                             sourceDirectory,
                             EnumeratedFileData.FromFileSystemEntry,
-                            new EnumerationOptions { AttributesToSkip = 0, RecurseSubdirectories = true });
+                            new EnumerationOptions
+                            {
+                                AttributesToSkip = 0,
+                                RecurseSubdirectories = true,
+                                IgnoreInaccessible = false,
+                            });
 
                         enumerable.ShouldIncludePredicate = ShouldInclude;
 
