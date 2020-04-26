@@ -248,7 +248,9 @@ namespace OneDriveUploadTool
             {
                 var fullPath = parentPath is null ? childPath : parentPath + '/' + childPath;
 
-                return rootBuilder.ItemWithPath(fullPath.Replace("%", "%25"));
+                return rootBuilder.ItemWithPath(fullPath
+                    .Replace("%", "%25")
+                    .Replace("&#", "& #"));
             };
         }
 

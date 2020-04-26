@@ -29,5 +29,14 @@ namespace OneDriveUploadTool.Tests
 
             factory(path).RequestUrl.ShouldBe("https://placeholder:443/root:/" + encoded + ":");
         }
+
+        [Test]
+        public static void Ampersand_may_not_be_immediately_followed_by_hash()
+        {
+            var requestBuilder = new DriveItemRequestBuilder("https://placeholder:443/root", client: null);
+            var factory = Program.CreateItemRequestBuilderFactory(requestBuilder, null);
+
+            factory("A&#B").RequestUrl.ShouldBe("https://placeholder:443/root:/A&%20%23B:");
+        }
     }
 }
