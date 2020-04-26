@@ -36,21 +36,28 @@ namespace OneDriveUploadTool
 
         public static async Task UploadAsync(string sourceDirectory, string destination, CancellationToken cancellationToken)
         {
-            var (token, files) = await (
-                GetAuthenticationTokenAsync(cancellationToken),
+            var ((client, itemRequestBuilderFactory), files) = await (
+                GetClientAndItemRequestBuilderFactoryAsync(),
                 Task.Run(() => new FileSystemEnumerable<EnumeratedFileData>(sourceDirectory, EnumeratedFileData.FromFileSystemEntry).ToImmutableArray(), cancellationToken));
-
-            var client = new GraphServiceClient(new DelegateAuthenticationProvider(request =>
-            {
-                request.Headers.Authorization = new AuthenticationHeaderValue("bearer", token);
-                return Task.CompletedTask;
-            }));
-
-            var getItemRequestBuilder = await GetDestinationItemRequestBuilderAsync(client, destination, cancellationToken);
 
             foreach (var file in files)
             {
-                await UploadFileAsync(client, getItemRequestBuilder, sourceDirectory, file, cancellationToken);
+                await UploadFileAsync(client, itemRequestBuilderFactory, sourceDirectory, file, cancellationToken);
+            }
+
+            async Task<(GraphServiceClient Client, Func<string, IDriveItemRequestBuilder> ItemRequestBuilderFactory)> GetClientAndItemRequestBuilderFactoryAsync()
+            {
+                var token = await GetAuthenticationTokenAsync(cancellationToken);
+
+                var client = new GraphServiceClient(new DelegateAuthenticationProvider(request =>
+                {
+                    request.Headers.Authorization = new AuthenticationHeaderValue("bearer", token);
+                    return Task.CompletedTask;
+                }));
+
+                var itemRequestBuilderFactory = await GetDestinationItemRequestBuilderAsync(client, destination, cancellationToken);
+
+                return (client, itemRequestBuilderFactory);
             }
         }
 
@@ -59,7 +66,7 @@ namespace OneDriveUploadTool
 
         private static async Task UploadFileAsync(
             GraphServiceClient client,
-            Func<string, IDriveItemRequestBuilder> getItemRequestBuilder,
+            Func<string, IDriveItemRequestBuilder> itemRequestBuilderFactory,
             string source,
             EnumeratedFileData file,
             CancellationToken cancellationToken)
@@ -70,7 +77,7 @@ namespace OneDriveUploadTool
             UploadSession session;
             try
             {
-                session = await getItemRequestBuilder(relativePath).CreateUploadSession(new DriveItemUploadableProperties
+                session = await itemRequestBuilderFactory(relativePath).CreateUploadSession(new DriveItemUploadableProperties
                 {
                     AdditionalData = UploadAdditionalData,
                     FileSystemInfo = new Microsoft.Graph.FileSystemInfo
