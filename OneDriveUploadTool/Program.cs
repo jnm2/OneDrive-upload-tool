@@ -68,7 +68,8 @@ namespace OneDriveUploadTool
 
                         return enumerable.ToImmutableArray();
 
-                        static bool ShouldInclude(ref FileSystemEntry entry) => !entry.IsDirectory;
+                        static bool ShouldInclude(ref FileSystemEntry entry) =>
+                            !entry.IsDirectory && entry.Length > 0;
                     },
                     cancellationToken));
 
