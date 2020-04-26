@@ -24,6 +24,8 @@ namespace OneDriveUploadTool
 
             public static EnumeratedFileData FromFileSystemEntry(ref FileSystemEntry entry)
             {
+                if (entry.IsDirectory) return default;
+
                 return new EnumeratedFileData(
                     entry.ToFullPath(),
                     entry.Length,
