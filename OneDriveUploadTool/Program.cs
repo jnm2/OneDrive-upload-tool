@@ -51,7 +51,13 @@ namespace OneDriveUploadTool
 
             var ((client, itemRequestBuilderFactory), files) = await (
                 GetClientAndItemRequestBuilderFactoryAsync(),
-                Task.Run(() => new FileSystemEnumerable<EnumeratedFileData>(sourceDirectory, EnumeratedFileData.FromFileSystemEntry).ToImmutableArray(), cancellationToken));
+                Task.Run(
+                    () => new FileSystemEnumerable<EnumeratedFileData>(
+                        sourceDirectory,
+                        EnumeratedFileData.FromFileSystemEntry,
+                        new EnumerationOptions { AttributesToSkip = FileAttributes.Directory, RecurseSubdirectories = true })
+                        .ToImmutableArray(),
+                    cancellationToken));
 
             structuredProgress.AddJobSize(files.Length);
             structuredProgress.Next("Uploading files", files.Length);
