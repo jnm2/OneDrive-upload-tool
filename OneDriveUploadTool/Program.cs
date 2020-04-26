@@ -38,7 +38,9 @@ namespace OneDriveUploadTool
         {
             source = Path.GetFullPath(source);
 
-            var token = await GetAuthenticationTokenAsync(cancellationToken);
+            var (token, files) = await (
+                GetAuthenticationTokenAsync(cancellationToken),
+                Task.Run(() => new FileSystemEnumerable<EnumeratedFileData>(source, EnumeratedFileData.FromFileSystemEntry).ToImmutableArray(), cancellationToken));
 
             var client = new GraphServiceClient(new DelegateAuthenticationProvider(request =>
             {
@@ -48,7 +50,7 @@ namespace OneDriveUploadTool
 
             var getItemRequestBuilder = await GetDestinationItemRequestBuilderAsync(client, destination, cancellationToken);
 
-            foreach (var file in new FileSystemEnumerable<EnumeratedFileData>(source, EnumeratedFileData.FromFileSystemEntry))
+            foreach (var file in files)
             {
                 await UploadAsync(client, getItemRequestBuilder, source, file, cancellationToken);
             }
