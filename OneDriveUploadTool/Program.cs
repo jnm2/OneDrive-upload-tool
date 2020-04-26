@@ -118,64 +118,67 @@ namespace OneDriveUploadTool
             CancellationToken cancellationToken)
         {
             var relativePath = Path.GetRelativePath(source, file.FullPath);
-
             var structuredProgress = progress.Start("Opening " + relativePath, initialJobSize: 0);
-
-            await using var fileStream = System.IO.File.OpenRead(file.FullPath);
-
-            structuredProgress.AddJobSize(1);
-            structuredProgress.Next("Creating upload session for " + relativePath);
-
-            UploadSession session;
             try
             {
-                session = await itemRequestBuilderFactory(relativePath).CreateUploadSession(new DriveItemUploadableProperties
+                await using var fileStream = System.IO.File.OpenRead(file.FullPath);
+
+                structuredProgress.AddJobSize(1);
+                structuredProgress.Next("Creating upload session for " + relativePath);
+
+                UploadSession session;
+                try
                 {
-                    AdditionalData = UploadAdditionalData,
-                    FileSystemInfo = new Microsoft.Graph.FileSystemInfo
+                    session = await itemRequestBuilderFactory(relativePath).CreateUploadSession(new DriveItemUploadableProperties
                     {
-                        CreatedDateTime = file.CreationTimeUtc,
-                        LastModifiedDateTime = file.LastWriteTimeUtc,
-                        LastAccessedDateTime = file.LastAccessTimeUtc,
-                    },
-                }).Request().PostAsync(cancellationToken);
-            }
-            catch (ServiceException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
-            {
-                structuredProgress.Complete("Skipped because file already exists at the destination.");
-                return;
-            }
-
-            // Use minimum maxChunkSize to keep progress reports moving
-            var provider = new ChunkedUploadProvider(session, client, fileStream, maxChunkSize: 320 * 1024);
-            var success = false;
-            try
-            {
-                var uploadRequests = provider.GetUploadChunkRequests().ToList();
-                structuredProgress.AddJobSize(uploadRequests.Sum(request => (long)request.RangeLength));
-
-                var exceptions = new List<Exception>();
-
-                foreach (var request in uploadRequests)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    structuredProgress.Next("Uploading " + relativePath, request.RangeLength);
-                    var result = await provider.GetChunkRequestResponseAsync(request, exceptions);
-
-                    if (result.UploadSucceeded)
-                        success = true;
+                        AdditionalData = UploadAdditionalData,
+                        FileSystemInfo = new Microsoft.Graph.FileSystemInfo
+                        {
+                            CreatedDateTime = file.CreationTimeUtc,
+                            LastModifiedDateTime = file.LastWriteTimeUtc,
+                            LastAccessedDateTime = file.LastAccessTimeUtc,
+                        },
+                    }).Request().PostAsync(cancellationToken);
                 }
+                catch (ServiceException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+                {
+                    structuredProgress.Complete("Skipped because file already exists at the destination.");
+                    return;
+                }
+
+                // Use minimum maxChunkSize to keep progress reports moving
+                var provider = new ChunkedUploadProvider(session, client, fileStream, maxChunkSize: 320 * 1024);
+                var success = false;
+                try
+                {
+                    var uploadRequests = provider.GetUploadChunkRequests().ToList();
+                    structuredProgress.AddJobSize(uploadRequests.Sum(request => (long)request.RangeLength));
+
+                    var exceptions = new List<Exception>();
+
+                    foreach (var request in uploadRequests)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        structuredProgress.Next("Uploading " + relativePath, request.RangeLength);
+                        var result = await provider.GetChunkRequestResponseAsync(request, exceptions);
+
+                        if (result.UploadSucceeded)
+                            success = true;
+                    }
+                }
+                finally
+                {
+                    if (!success) await provider.DeleteSession();
+                }
+
+                if (!success)
+                    throw new NotImplementedException("Upload failed");
             }
             finally
             {
-                if (!success) await provider.DeleteSession();
+                structuredProgress.Complete();
             }
-
-            if (!success)
-                throw new NotImplementedException("Upload failed");
-
-            structuredProgress.Complete();
         }
 
         private static async Task<string> GetAuthenticationTokenAsync(CancellationToken cancellationToken)
