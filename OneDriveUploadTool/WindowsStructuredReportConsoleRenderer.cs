@@ -14,7 +14,6 @@ namespace OneDriveUploadTool
         private readonly IntPtr outputHandle = GetStdHandle(STD_HANDLE.OUTPUT);
         private readonly CHAR_INFO[,] buffer;
         private readonly COORD bufferSize;
-        private (short MaxX, short MaxY) previousRender;
 
         public WindowsStructuredReportConsoleRenderer()
         {
@@ -45,14 +44,12 @@ namespace OneDriveUploadTool
                 {
                     Left = 0,
                     Top = 0,
-                    Right = Math.Max(previousRender.MaxX, (short)writer.MaxX),
-                    Bottom = Math.Max(previousRender.MaxY, (short)writer.MaxY),
+                    Right = (short)(bufferSize.X - 1),
+                    Bottom = (short)(bufferSize.Y - 1),
                 };
 
                 if (!WriteConsoleOutput(outputHandle, buffer, bufferSize, dwBufferCoord: default, ref writeRegion))
                     throw new Win32Exception();
-
-                previousRender = ((short)writer.MaxX, (short)writer.MaxY);
 
                 for (var y = 0; y <= writer.MaxY; y++)
                 {
