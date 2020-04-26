@@ -146,18 +146,19 @@ namespace OneDriveUploadTool
                 client.Drive.Root.Children.Request().Filter(filter).Top(2).GetAsync(cancellationToken));
 
             var totalCount = matchingSharedItems.Count + driveRootItems.Count;
-            if (totalCount < 1)
-                throw new NotImplementedException($"Shared or root item '{firstSegment}' was not found.");
-            else if (totalCount > 1)
+            if (totalCount > 1)
                 throw new NotImplementedException($"More than one shared or root item named '{firstSegment}' was found.");
 
-            var rootItem = matchingSharedItems.Concat(driveRootItems).Single();
+            if (matchingSharedItems.Concat(driveRootItems).SingleOrDefault() is { } rootItem)
+            {
+                var rootRequestBuilder = client
+                    .Drives[rootItem.RemoteItem.ParentReference.DriveId]
+                    .Items[rootItem.RemoteItem.Id];
 
-            var rootRequestBuilder = client
-                .Drives[rootItem.RemoteItem.ParentReference.DriveId]
-                .Items[rootItem.RemoteItem.Id];
+                return childPath => rootRequestBuilder.ItemWithPath(rest + '/' + childPath);
+            }
 
-            return childPath => rootRequestBuilder.ItemWithPath(rest + '/' + childPath);
+            return childPath => client.Drive.Root.ItemWithPath(destination + '/' + childPath);
         }
 
         private static readonly char[] SeparatorChars = { '/', '\\' };
