@@ -124,74 +124,85 @@ namespace OneDriveUploadTool
             {
                 await using var fileStream = System.IO.File.OpenRead(file.FullPath);
 
-                structuredProgress.AddJobSize(1);
-                structuredProgress.Next("Creating upload session for " + relativePath);
-
-                UploadSession session;
-                try
+                for (var i = 0; ; i++)
                 {
-                    session = await itemRequestBuilderFactory(relativePath).CreateUploadSession(new DriveItemUploadableProperties
+                    try
                     {
-                        AdditionalData = UploadAdditionalData,
-                        FileSystemInfo = new Microsoft.Graph.FileSystemInfo
+                        structuredProgress.AddJobSize(1);
+                        structuredProgress.Next("Creating upload session for " + relativePath);
+
+                        UploadSession session;
+                        try
                         {
-                            CreatedDateTime = file.CreationTimeUtc,
-                            LastModifiedDateTime = file.LastWriteTimeUtc,
-                            LastAccessedDateTime = file.LastAccessTimeUtc,
-                        },
-                    }).Request().PostAsync(cancellationToken);
-                }
-                catch (ServiceException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
-                {
-                    structuredProgress.Complete("Skipped because file already exists at the destination.");
-                    return;
-                }
-
-                var reportedUploadJobSize = file.Length;
-                structuredProgress.AddJobSize(reportedUploadJobSize);
-
-                var actualUploadJobSize = 0;
-
-                // Use minimum maxChunkSize to keep progress reports moving
-                var provider = new ChunkedUploadProvider(session, client, fileStream, maxChunkSize: 320 * 1024);
-                var success = false;
-                try
-                {
-                    while (true)
-                    {
-                        var uploadRequests = provider.GetUploadChunkRequests().ToList();
-                        if (!uploadRequests.Any())
-                            throw new NotImplementedException("Upload has not succeeded and no upload chunks were requested.");
-
-                        actualUploadJobSize += uploadRequests.Sum(request => request.RangeLength);
-                        if (actualUploadJobSize > reportedUploadJobSize)
+                            session = await itemRequestBuilderFactory(relativePath).CreateUploadSession(new DriveItemUploadableProperties
+                            {
+                                AdditionalData = UploadAdditionalData,
+                                FileSystemInfo = new Microsoft.Graph.FileSystemInfo
+                                {
+                                    CreatedDateTime = file.CreationTimeUtc,
+                                    LastModifiedDateTime = file.LastWriteTimeUtc,
+                                    LastAccessedDateTime = file.LastAccessTimeUtc,
+                                },
+                            }).Request().PostAsync(cancellationToken);
+                        }
+                        catch (ServiceException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
                         {
-                            structuredProgress.AddJobSize(actualUploadJobSize - reportedUploadJobSize);
-                            reportedUploadJobSize = actualUploadJobSize;
+                            structuredProgress.Complete("Skipped because file already exists at the destination.");
+                            return;
                         }
 
-                        var exceptions = new List<Exception>();
+                        var reportedUploadJobSize = file.Length;
+                        structuredProgress.AddJobSize(reportedUploadJobSize);
 
-                        foreach (var request in uploadRequests)
+                        var actualUploadJobSize = 0;
+
+                        // Use minimum maxChunkSize to keep progress reports moving
+                        var provider = new ChunkedUploadProvider(session, client, fileStream, maxChunkSize: 320 * 1024);
+                        var success = false;
+                        try
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
+                            while (true)
+                            {
+                                var uploadRequests = provider.GetUploadChunkRequests().ToList();
+                                if (!uploadRequests.Any())
+                                    throw new NotImplementedException("Upload has not succeeded and no upload chunks were requested.");
 
-                            structuredProgress.Next("Uploading " + relativePath, request.RangeLength);
-                            var result = await provider.GetChunkRequestResponseAsync(request, exceptions);
+                                actualUploadJobSize += uploadRequests.Sum(request => request.RangeLength);
+                                if (actualUploadJobSize > reportedUploadJobSize)
+                                {
+                                    structuredProgress.AddJobSize(actualUploadJobSize - reportedUploadJobSize);
+                                    reportedUploadJobSize = actualUploadJobSize;
+                                }
 
-                            if (result.UploadSucceeded)
-                                success = true;
+                                var exceptions = new List<Exception>();
+
+                                foreach (var request in uploadRequests)
+                                {
+                                    cancellationToken.ThrowIfCancellationRequested();
+
+                                    structuredProgress.Next("Uploading " + relativePath, request.RangeLength);
+                                    var result = await provider.GetChunkRequestResponseAsync(request, exceptions);
+
+                                    if (result.UploadSucceeded)
+                                        success = true;
+                                }
+
+                                if (success) break;
+
+                                cancellationToken.ThrowIfCancellationRequested();
+                                await provider.UpdateSessionStatusAsync();
+                            }
+                        }
+                        finally
+                        {
+                            if (!success) await provider.DeleteSession();
                         }
 
-                        if (success) break;
-
-                        cancellationToken.ThrowIfCancellationRequested();
-                        await provider.UpdateSessionStatusAsync();
+                        break;
                     }
-                }
-                finally
-                {
-                    if (!success) await provider.DeleteSession();
+                    catch (NullReferenceException) when (i < 5) // https://github.com/microsoftgraph/msgraph-sdk-dotnet-core/issues/113
+                    {
+                    }
                 }
             }
             finally
