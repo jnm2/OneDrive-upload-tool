@@ -93,13 +93,8 @@ namespace OneDriveUploadTool
 
             async Task<(GraphServiceClient Client, Func<string, IDriveItemRequestBuilder> ItemRequestBuilderFactory)> GetClientAndItemRequestBuilderFactoryAsync()
             {
-                var token = await GetAuthenticationTokenAsync(cancellationToken);
-
-                var client = new GraphServiceClient(new DelegateAuthenticationProvider(request =>
-                {
-                    request.Headers.Authorization = new AuthenticationHeaderValue("bearer", token);
-                    return Task.CompletedTask;
-                }));
+                var provider = await GetAuthenticationProviderAsync(cancellationToken);
+                var client = new GraphServiceClient(provider);
 
                 var itemRequestBuilderFactory = await GetDestinationItemRequestBuilderAsync(client, destination, cancellationToken);
 
@@ -211,17 +206,15 @@ namespace OneDriveUploadTool
             }
         }
 
-        private static async Task<string> GetAuthenticationTokenAsync(CancellationToken cancellationToken)
+        private static async Task<IAuthenticationProvider> GetAuthenticationProviderAsync(CancellationToken cancellationToken)
         {
             var application = PublicClientApplicationBuilder.Create("f398db46-8115-42ae-a5e3-09e3b691d1cf")
                   .WithRedirectUri("http://localhost")
                   .Build();
 
-            var authenticationResult = await application.AcquireTokenInteractive(new[] { "files.readwrite.all" })
-                .WithUseEmbeddedWebView(false)
-                .ExecuteAsync(cancellationToken);
-
-            return authenticationResult.AccessToken;
+            var provider = new EagerRefreshAuthenticationProvider(application, ImmutableArray.Create("files.readwrite.all", "offline_access"));
+            await provider.InitialAuthenticationTask;
+            return provider;
         }
 
         private static async Task<Func<string, IDriveItemRequestBuilder>> GetDestinationItemRequestBuilderAsync(
